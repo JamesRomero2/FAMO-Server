@@ -63,11 +63,17 @@ class Master {
             http_response_code(500);
             return json_encode(['error' => 'An error occurred  ' . $e->getMessage()]);
         }
-        
+    }
+    function getRandomColor() {
+        return sprintf('#%06X', mt_rand(0, 0xFFFFFF));
     }
 }
 
 class Get extends Master {
+    public function logout($sessionID) {
+        $_SESSION = [];
+        session_destroy();
+    }
     public function getAllMyNotification($userId) {
         try {
             $stmt = $this->db->prepare("
@@ -122,6 +128,142 @@ class Get extends Master {
             $roles = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
             return json_encode($roles);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            return json_encode(['error' => 'An error occurred  ' . $e->getMessage()]);
+        }
+    }
+    public function fetchSupplySummary() {
+        try {
+            $currentYear = date('Y');
+            $currentMonth = date('m');
+            $stmt = $this->db->prepare("SELECT c.description AS name, SUM(i.no_of_stock) AS value FROM categories c JOIN inventory i ON c.id = i.category_id WHERE YEAR(i.date_delivery) = :currentYear AND MONTH(i.date_delivery) = :currentMonth GROUP BY c.description");
+            $stmt->bindParam(':currentYear', $currentYear, PDO::PARAM_INT);
+            $stmt->bindParam(':currentMonth', $currentMonth, PDO::PARAM_INT);
+            $stmt->execute();
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $output = [];
+            foreach ($results as $row) {
+                $output[] = [
+                    'name' => $row['name'],
+                    'value' => (int) $row['value'],
+                    'color' => $this -> getRandomColor(),
+                ];
+            }
+
+            return json_encode($output);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            return json_encode(['error' => 'An error occurred  ' . $e->getMessage()]);
+        }
+    }
+    public function fetchAllInventoryDashboard() {
+        try {
+            $stmt = $this->db->prepare("SELECT  i.item_name AS item_name, i.no_of_stock AS quantity, u.description AS unit_of_measurement, c.description AS category FROM  inventory i JOIN  categories c ON i.category_id = c.id JOIN  units_of_measurement u ON i.unit_id = u.id WHERE i.no_of_stock != 0");
+            $stmt->execute();
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $output = [];
+
+            foreach ($results as $row) {
+                $output[] = [
+                    'item name' => $row['item_name'],
+                    'quantity' => (int) $row['quantity'],
+                    'unit' => $row['unit_of_measurement'],
+                    'category' => $row['category']
+                ];
+            }
+
+            return json_encode($output);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            return json_encode(['error' => 'An error occurred  ' . $e->getMessage()]);
+        }
+    }
+    public function shelf() {
+        try {
+            $stmt = $this->db->prepare("SELECT COUNT(*) AS total_items FROM inventory");
+            $stmt -> execute();
+            $totalItems = $stmt->fetch(PDO::FETCH_ASSOC)['total_items'];
+            $stmt1 = $this->db->prepare("SELECT COUNT(*) AS total_categories FROM categories");
+            $stmt1 -> execute();
+            $totalCategories = $stmt1->fetch(PDO::FETCH_ASSOC)['total_categories'];
+            $stmt2 = $this->db->prepare("SELECT COUNT(*) AS total_users FROM users");
+            $stmt2 -> execute();
+            $totalUsers = $stmt2->fetch(PDO::FETCH_ASSOC)['total_users'];
+
+            return json_encode([
+                'supply' => (int) $totalItems,     // Total number of distinct items
+                'category' => (int) $totalCategories, // Total categories
+                'user' => (int) $totalUsers          // Total users
+            ]);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            return json_encode(['error' => 'An error occurred  ' . $e->getMessage()]);
+        }
+    }
+    public function fetchAllOutOfStockDashboard() {
+        try {
+            $stmt = $this->db->prepare("SELECT i.item_name AS item_name, i.no_of_stock AS quantity, u.description AS unit_of_measurement, c.description AS category FROM  inventory i JOIN  categories c ON i.category_id = c.id JOIN  units_of_measurement u ON i.unit_id = u.id WHERE i.no_of_stock = 0");
+            $stmt->execute();
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $output = [];
+
+            foreach ($results as $row) {
+                $output[] = [
+                    'item name' => $row['item_name'],
+                    'quantity' => (int) $row['quantity'],
+                    'unit' => $row['unit_of_measurement'],
+                    'category' => $row['category']
+                ];
+            }
+
+            return json_encode($output);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            return json_encode(['error' => 'An error occurred  ' . $e->getMessage()]);
+        }
+    }
+    public function inventoryCategoryPercentage() {
+        try {
+            $stmt = $this->db->prepare("SELECT c.description AS name, SUM(i.no_of_stock) AS total_stock FROM categories c JOIN inventory i ON c.id = i.category_id GROUP BY c.description");
+            $stmt->execute();
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            $totalStock = 0;
+            foreach ($results as $row) {
+                $totalStock += $row['total_stock'];
+            }
+
+            $output = [];
+            foreach ($results as $row) {
+                $percentage = ($row['total_stock'] / $totalStock) * 100;
+                $output[] = [
+                    'name' => $row['name'],
+                    'percentage' => round($percentage, 2)  // Round to 2 decimal places
+                ];
+            }
+
+            return json_encode($output);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            return json_encode(['error' => 'An error occurred  ' . $e->getMessage()]);
+        }
+    }
+    public function pieChartDetails() {
+        try {
+            $stmt = $this->db->prepare("SELECT  COUNT(*) AS totalItems, SUM(CASE WHEN uom.low_limit < inv.no_of_stock THEN 1 ELSE 0 END) AS lowItems, SUM(CASE WHEN uom.full_limit = inv.no_of_stock THEN 1 ELSE 0 END) AS fullItems, SUM(CASE WHEN inv.no_of_stock <= uom.reserved_limit THEN 1 ELSE 0 END) AS reservedItems, SUM(CASE WHEN inv.no_of_stock = 0 THEN 1 ELSE 0 END) AS noStockItems FROM inventory inv JOIN units_of_measurement uom ON inv.unit_id = uom.id");
+            $stmt->execute();
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            $output = [
+                'totalItems' => (int) $result['totalItems'],
+                'Low Items' => (int) $result['lowItems'],
+                'Full Items' => (int) $result['fullItems'],
+                'Reserved Items' => (int) $result['reservedItems'],
+                'No Stocks Items' => (int) $result['noStockItems'],
+            ];
+
+            return json_encode($output);
         } catch (\Throwable $e) {
             http_response_code(500);
             return json_encode(['error' => 'An error occurred  ' . $e->getMessage()]);
@@ -190,7 +332,14 @@ class Post extends Master {
             http_response_code(500);
             return json_encode(['error' => 'An error occurred  ' . $e->getMessage()]);
         }
-        
+    }
+    public function addRequest($data) {
+        try {
+            //code...
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            return json_encode(['error' => 'An error occurred  ' . $e->getMessage()]);
+        }
     }
 }
 class Put extends Master {

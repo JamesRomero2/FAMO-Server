@@ -29,11 +29,13 @@ if ($method === 'POST') {
                 $username = $data -> username;
                 $password = $data -> password;
                 $stmt = $db->prepare("SELECT id, username, first_name, last_name, role, password FROM users WHERE username = :username AND password = :password AND status = 'active' AND deleted = 0 LIMIT 1");
+                // $stmt = $db->prepare("SELECT id, username, first_name, last_name, role, password FROM users WHERE username = :username AND status = 'active' AND deleted = 0 LIMIT 1");
                 $stmt->bindParam(':username', $username, PDO::PARAM_STR);
                 $stmt->bindParam(':password', $password, PDO::PARAM_STR);
                 $stmt->execute();
                 $user = $stmt->fetch(PDO::FETCH_ASSOC);
     
+                // if ($user && password_verify($password, $user['password'])) {
                 if ($user) {
                     session_start();
                     session_regenerate_id();

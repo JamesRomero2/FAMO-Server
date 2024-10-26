@@ -41,14 +41,26 @@ if ($method === 'GET') {
     }
 
     if ($event === 'logout') {
-        $get -> logout();
+        $get -> logout($sessionID);
     } elseif ($event === 'mynotifs') {
         echo $get -> getAllMyNotification($_SESSION['user_id']);
     } elseif ($event === 'allUsers') {
         echo $get -> getAllUsers();
     } elseif ($event === 'fetchRoles') {
         echo $get -> fetchRoles();
-    } 
+    } elseif ($event === 'fetchSupplySummary') {
+        echo $get -> fetchSupplySummary();
+    } elseif ($event === 'fetchAllInventoryDashboard') {
+        echo $get -> fetchAllInventoryDashboard();
+    } elseif ($event === 'shelf') {
+        echo $get -> shelf();
+    } elseif ($event === 'fetchAllOutOfStockDashboard') {
+        echo $get -> fetchAllOutOfStockDashboard();
+    } elseif ($event === 'inventoryCategoryPercentage') {
+        echo $get -> inventoryCategoryPercentage();
+    } elseif ($event === 'pieChartDetails') {
+        echo $get -> pieChartDetails();
+    }
 
 } elseif ($method === 'POST') {
     if (!isset($data -> session_id)) {
@@ -68,7 +80,9 @@ if ($method === 'GET') {
             echo false; // Passwords do not match
         }
         echo $post -> addUser($data);
-    } 
+    } elseif ($event === 'pieChartDetails') {
+        echo $post -> addRequest($data);
+    }
 } elseif ($method === 'PUT') {
 
 } elseif ($method === 'DELETE') {
