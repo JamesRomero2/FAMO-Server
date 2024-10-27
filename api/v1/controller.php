@@ -269,6 +269,46 @@ class Get extends Master {
             return json_encode(['error' => 'An error occurred  ' . $e->getMessage()]);
         }
     }
+    public function getItemCategory() {
+        try {
+            // $stmt = $this->db->prepare("SELECT  COUNT(*) AS totalItems, SUM(CASE WHEN uom.low_limit < inv.no_of_stock THEN 1 ELSE 0 END) AS lowItems, SUM(CASE WHEN uom.full_limit = inv.no_of_stock THEN 1 ELSE 0 END) AS fullItems, SUM(CASE WHEN inv.no_of_stock <= uom.reserved_limit THEN 1 ELSE 0 END) AS reservedItems, SUM(CASE WHEN inv.no_of_stock = 0 THEN 1 ELSE 0 END) AS noStockItems FROM inventory inv JOIN units_of_measurement uom ON inv.unit_id = uom.id");
+            // $stmt->execute();
+            // $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            // $output = [
+            //     'totalItems' => (int) $result['totalItems'],
+            //     'Low Items' => (int) $result['lowItems'],
+            //     'Full Items' => (int) $result['fullItems'],
+            //     'Reserved Items' => (int) $result['reservedItems'],
+            //     'No Stocks Items' => (int) $result['noStockItems'],
+            // ];
+
+            // return json_encode($output);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            return json_encode(['error' => 'An error occurred  ' . $e->getMessage()]);
+        }
+    }
+    public function getRequestData() {
+        try {
+            // $stmt = $this->db->prepare("SELECT  COUNT(*) AS totalItems, SUM(CASE WHEN uom.low_limit < inv.no_of_stock THEN 1 ELSE 0 END) AS lowItems, SUM(CASE WHEN uom.full_limit = inv.no_of_stock THEN 1 ELSE 0 END) AS fullItems, SUM(CASE WHEN inv.no_of_stock <= uom.reserved_limit THEN 1 ELSE 0 END) AS reservedItems, SUM(CASE WHEN inv.no_of_stock = 0 THEN 1 ELSE 0 END) AS noStockItems FROM inventory inv JOIN units_of_measurement uom ON inv.unit_id = uom.id");
+            // $stmt->execute();
+            // $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            // $output = [
+            //     'totalItems' => (int) $result['totalItems'],
+            //     'Low Items' => (int) $result['lowItems'],
+            //     'Full Items' => (int) $result['fullItems'],
+            //     'Reserved Items' => (int) $result['reservedItems'],
+            //     'No Stocks Items' => (int) $result['noStockItems'],
+            // ];
+
+            // return json_encode($output);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            return json_encode(['error' => 'An error occurred  ' . $e->getMessage()]);
+        }
+    }
 }
 class Post extends Master {
     public function login(string $username, string $password) {

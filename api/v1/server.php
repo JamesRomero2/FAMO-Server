@@ -60,6 +60,10 @@ if ($method === 'GET') {
         echo $get -> inventoryCategoryPercentage();
     } elseif ($event === 'pieChartDetails') {
         echo $get -> pieChartDetails();
+    } elseif ($event === 'getItemCategory') {
+        echo $get -> getItemCategory();
+    } elseif ($event === 'getRequestData') {
+        echo $get -> getRequestData();
     }
 
 } elseif ($method === 'POST') {
