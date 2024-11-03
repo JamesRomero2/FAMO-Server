@@ -137,9 +137,10 @@ class Get extends Master {
         try {
             $currentYear = date('Y');
             $currentMonth = date('m');
-            $stmt = $this->db->prepare("SELECT c.description AS name, SUM(i.no_of_stock) AS value FROM categories c JOIN inventory i ON c.id = i.category_id WHERE YEAR(i.date_delivery) = :currentYear AND MONTH(i.date_delivery) = :currentMonth GROUP BY c.description");
-            $stmt->bindParam(':currentYear', $currentYear, PDO::PARAM_INT);
-            $stmt->bindParam(':currentMonth', $currentMonth, PDO::PARAM_INT);
+            // $stmt = $this->db->prepare("SELECT c.description AS name, SUM(i.no_of_stock) AS value FROM categories c JOIN inventory i ON c.id = i.category_id WHERE YEAR(i.date_delivery) = :currentYear AND MONTH(i.date_delivery) = :currentMonth GROUP BY c.description");
+            // $stmt->bindParam(':currentYear', $currentYear, PDO::PARAM_INT);
+            // $stmt->bindParam(':currentMonth', $currentMonth, PDO::PARAM_INT);
+            $stmt = $this->db->prepare("SELECT c.description AS name, SUM(i.no_of_stock) AS value FROM categories c JOIN inventory i ON c.id = i.category_id GROUP BY c.description");
             $stmt->execute();
             $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
             $output = [];
@@ -271,19 +272,25 @@ class Get extends Master {
     }
     public function getItemCategory() {
         try {
-            // $stmt = $this->db->prepare("SELECT  COUNT(*) AS totalItems, SUM(CASE WHEN uom.low_limit < inv.no_of_stock THEN 1 ELSE 0 END) AS lowItems, SUM(CASE WHEN uom.full_limit = inv.no_of_stock THEN 1 ELSE 0 END) AS fullItems, SUM(CASE WHEN inv.no_of_stock <= uom.reserved_limit THEN 1 ELSE 0 END) AS reservedItems, SUM(CASE WHEN inv.no_of_stock = 0 THEN 1 ELSE 0 END) AS noStockItems FROM inventory inv JOIN units_of_measurement uom ON inv.unit_id = uom.id");
-            // $stmt->execute();
-            // $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            $stmt = $this->db->prepare("SELECT description FROM categories");
+            $stmt->execute();
+            $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $descriptions = array_column($result, 'description');
 
-            // $output = [
-            //     'totalItems' => (int) $result['totalItems'],
-            //     'Low Items' => (int) $result['lowItems'],
-            //     'Full Items' => (int) $result['fullItems'],
-            //     'Reserved Items' => (int) $result['reservedItems'],
-            //     'No Stocks Items' => (int) $result['noStockItems'],
-            // ];
+            return json_encode($descriptions);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            return json_encode(['error' => 'An error occurred  ' . $e->getMessage()]);
+        }
+    }
+    public function getItemUnitOfMeasurement() {
+        try {
+            $stmt = $this->db->prepare("SELECT unit FROM units_of_measurement");
+            $stmt->execute();
+            $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $unit = array_column($result, 'unit');
 
-            // return json_encode($output);
+            return json_encode($unit);
         } catch (\Throwable $e) {
             http_response_code(500);
             return json_encode(['error' => 'An error occurred  ' . $e->getMessage()]);
@@ -291,19 +298,128 @@ class Get extends Master {
     }
     public function getRequestData() {
         try {
-            // $stmt = $this->db->prepare("SELECT  COUNT(*) AS totalItems, SUM(CASE WHEN uom.low_limit < inv.no_of_stock THEN 1 ELSE 0 END) AS lowItems, SUM(CASE WHEN uom.full_limit = inv.no_of_stock THEN 1 ELSE 0 END) AS fullItems, SUM(CASE WHEN inv.no_of_stock <= uom.reserved_limit THEN 1 ELSE 0 END) AS reservedItems, SUM(CASE WHEN inv.no_of_stock = 0 THEN 1 ELSE 0 END) AS noStockItems FROM inventory inv JOIN units_of_measurement uom ON inv.unit_id = uom.id");
-            // $stmt->execute();
-            // $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            $stmt = $this->db->prepare("SELECT requests.request_number AS 'Request ID', CONCAT(users.first_name, ' ', users.last_name) AS 'Requested By', requests.request_date AS 'Request Date', status.description AS 'Status' FROM requests JOIN users ON requests.requested_by = users.id JOIN status ON requests.status_id = status.id WHERE requests.archive = 0");
+            $stmt->execute();
+            $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            // $output = [
-            //     'totalItems' => (int) $result['totalItems'],
-            //     'Low Items' => (int) $result['lowItems'],
-            //     'Full Items' => (int) $result['fullItems'],
-            //     'Reserved Items' => (int) $result['reservedItems'],
-            //     'No Stocks Items' => (int) $result['noStockItems'],
-            // ];
+            return json_encode($result);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            return json_encode(['error' => 'An error occurred  ' . $e->getMessage()]);
+        }
+    }
+    public function getBelowThresholdItems() {
+        try {
+            $stmt = $this->db->prepare("SELECT inventory.item_name AS itemname, inventory.no_of_stock AS quantity, units_of_measurement.description AS unit, categories.description AS categories FROM  inventory JOIN  units_of_measurement ON inventory.unit_id = units_of_measurement.id LEFT JOIN categories ON inventory.category_id = categories.id WHERE inventory.no_of_stock < units_of_measurement.low_limit AND inventory.no_of_stock > 0");
+            $stmt->execute();
+            $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            return json_encode($result);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            return json_encode(['error' => 'An error occurred  ' . $e->getMessage()]);
+        }
+    }
+    public function getSpecificRequest($requestID) {
+        try {
+            $stmt = $this->db->prepare("SELECT 
+                ri.item_name AS itemName, 
+                c.description AS category, 
+                pg.abbrev AS groupAbbrev, 
+                ri.quantity, 
+                uom.description AS UOM, 
+                ri.justification 
+            FROM 
+                request_items ri 
+            JOIN 
+                requests r ON ri.request_id = r.id 
+            LEFT JOIN 
+                categories c ON ri.category_id = c.id 
+            LEFT JOIN 
+                units_of_measurement uom ON ri.units_of_measurement_id = uom.id 
+            LEFT JOIN 
+                pup_groups pg ON ri.pup_group_id = pg.id 
+            WHERE 
+                r.request_number = :request_number");
+            $stmt->bindParam(':request_number', $requestID, PDO::PARAM_STR);
+            $stmt->execute();
+            $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            return json_encode($result);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            return json_encode(['error' => 'An error occurred  ' . $e->getMessage()]);
+        }
+    }
+    public function getDestination() {
+        try {
+            $stmt = $this->db->prepare("SELECT abbrev FROM pup_groups");
+            $stmt->execute();
+            $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $descriptions = array_column($result, 'abbrev');
 
-            // return json_encode($output);
+            return json_encode($descriptions);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            return json_encode(['error' => 'An error occurred  ' . $e->getMessage()]);
+        }
+    }
+    public function getTopFrequentItems() {
+        try {
+            $stmt = $this->db->prepare("SELECT 
+            pg.abbrev AS group_abbrev,
+            inv.item_name,
+            f.amount,
+            pg.id AS group_id,
+            group_totals.total_amount
+        FROM frequency f
+        JOIN inventory inv ON f.inventory_id = inv.id
+        JOIN pup_groups pg ON f.pup_groups_id = pg.id
+        JOIN (
+            SELECT pup_groups_id, SUM(amount) AS total_amount
+            FROM frequency
+            GROUP BY pup_groups_id
+        ) group_totals ON group_totals.pup_groups_id = pg.id
+        JOIN (
+            SELECT 
+                f2.pup_groups_id,
+                f2.inventory_id,
+                f2.amount,
+                ROW_NUMBER() OVER (PARTITION BY f2.pup_groups_id ORDER BY f2.amount DESC) AS rank
+            FROM frequency f2
+        ) ranked_items ON ranked_items.pup_groups_id = f.pup_groups_id 
+                        AND ranked_items.inventory_id = f.inventory_id 
+                        AND ranked_items.rank <= 5
+        ORDER BY pg.abbrev, ranked_items.rank;
+    ");
+            $stmt->execute();
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $data = [];
+            foreach ($results as $row) {
+                $groupAbbrev = $row['group_abbrev'];
+                
+                if (!isset($data[$groupAbbrev])) {
+                    $data[$groupAbbrev] = [
+                        'items' => [],
+                        'total_amount' => $row['total_amount']
+                    ];
+                }
+        
+                $data[$groupAbbrev]['items'][] = [
+                    'item_name' => $row['item_name'],
+                    'amount' => $row['amount']
+                ];
+            }
+            return json_encode($data);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            return json_encode(['error' => 'An error occurred  ' . $e->getMessage()]);
+        }
+    }
+    public function getFullInventoryDetails() {
+        try {
+            $stmt = $this->db->prepare("SELECT inv.item_name AS `Item name`, cat.description AS `Category`, pg.abbrev AS `Destination`, uom.description AS `Unit`, inv.no_of_stock AS `Quantity` FROM inventory inv LEFT JOIN categories cat ON inv.category_id = cat.id LEFT JOIN units_of_measurement uom ON inv.unit_id = uom.id LEFT JOIN pup_groups pg ON inv.pup_group_id = pg.id ORDER BY pg.abbrev, inv.item_name;");
+            $stmt->execute();
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            return json_encode($results);
         } catch (\Throwable $e) {
             http_response_code(500);
             return json_encode(['error' => 'An error occurred  ' . $e->getMessage()]);
@@ -373,9 +489,84 @@ class Post extends Master {
             return json_encode(['error' => 'An error occurred  ' . $e->getMessage()]);
         }
     }
-    public function addRequest($data) {
+    public function addRequest($data, $userID) {
         try {
-            //code...
+            $stmt = $this->db->prepare("SELECT COUNT(*) AS total FROM requests");
+            $stmt->execute();
+            $rowCount = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
+            $currentYear = date('Y');
+            $currentMonth = date('m'); 
+            $number = $rowCount + 1; 
+
+            $requestNumber = sprintf("REQ-%s-%s-%04d", $currentYear, $currentMonth, $number);
+
+            $stmt1 = $this->db->prepare("INSERT INTO requests (request_number, requested_by, request_date, archive) VALUES (:request_number, :requested_by, NOW(), 0)");
+            $stmt1->bindParam(':request_number', $requestNumber);
+            $stmt1->bindParam(':requested_by', $userID);
+
+            $stmt1->execute();
+
+            $requestId = $this->db->lastInsertId();
+            if (is_object($data)) {
+                $data = json_decode(json_encode($data), true);
+            } elseif (is_string($data)) {
+                // If it's a JSON string, decode it to an associative array
+                $data = json_decode($data, true);
+            }
+
+            foreach ($data as $item) {
+                $sqlCategory = "SELECT id FROM categories WHERE description = :category";
+                $stmtCategory = $this->db->prepare($sqlCategory);
+                $stmtCategory->bindParam(':category', $item['category']);
+                $stmtCategory->execute();
+                $categoryId = $stmtCategory->fetch(PDO::FETCH_ASSOC)['id'];
+
+                $sqlUOM = "SELECT id FROM units_of_measurement WHERE unit = :uom";
+                $stmtUOM = $this->db->prepare($sqlUOM);
+                $stmtUOM->bindParam(':uom', $item['UOM']);
+                $stmtUOM->execute();
+                $uomId = $stmtUOM->fetch(PDO::FETCH_ASSOC)['id'];
+
+                $sqlGroup = "SELECT id FROM pup_groups WHERE abbrev = :abbr";
+                $sqlGroup = $this->db->prepare($sqlGroup);
+                $sqlGroup->bindParam(':abbr', $item['destination']);
+                $sqlGroup->execute();
+                $destinationId = $sqlGroup->fetch(PDO::FETCH_ASSOC)['id'];
+
+                $sqlInsert = "
+                    INSERT INTO request_items (
+                        request_id, 
+                        item_name, 
+                        category_id, 
+                        units_of_measurement_id, 
+                        pup_group_id,
+                        quantity, 
+                        justification
+                    ) VALUES (
+                        :request_id, 
+                        :item_name, 
+                        :category_id, 
+                        :units_of_measurement_id,
+                        :pupgID,
+                        :quantity, 
+                        :justification
+                    )
+                ";
+                $stmtInsert = $this->db->prepare($sqlInsert);
+
+                // Bind values
+                $stmtInsert->bindParam(':request_id', $requestId);
+                $stmtInsert->bindParam(':item_name', $item['itemName']);
+                $stmtInsert->bindParam(':category_id', $categoryId);
+                $stmtInsert->bindParam(':units_of_measurement_id', $uomId);
+                $stmtInsert->bindParam(':pupgID', $destinationId);
+                $stmtInsert->bindParam(':quantity', $item['quantity']);
+                $stmtInsert->bindParam(':justification', $item['justification']);
+                
+                // Execute the insert statement
+                $stmtInsert->execute();
+            }
+            return "Request items inserted successfully.";
         } catch (\Throwable $e) {
             http_response_code(500);
             return json_encode(['error' => 'An error occurred  ' . $e->getMessage()]);

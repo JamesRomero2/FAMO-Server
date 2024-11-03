@@ -64,8 +64,19 @@ if ($method === 'GET') {
         echo $get -> getItemCategory();
     } elseif ($event === 'getRequestData') {
         echo $get -> getRequestData();
+    } elseif ($event === 'getItemUnitOfMeasurement') {
+        echo $get -> getItemUnitOfMeasurement();
+    } elseif ($event === 'getBelowThresholdItems') {
+        echo $get -> getBelowThresholdItems();
+    } elseif ($event === 'getSpecificRequest') {
+        echo $get -> getSpecificRequest($_GET['parameter']['request_number']);
+    } elseif ($event === 'getDestination') {
+        echo $get -> getDestination();
+    } elseif ($event === 'getTopFrequentItems') {
+        echo $get -> getTopFrequentItems();
+    } elseif($event === 'getFullInventoryDetails') {
+        echo $get -> getFullInventoryDetails();
     }
-
 } elseif ($method === 'POST') {
     if (!isset($data -> session_id)) {
         echo "No Session ID";
@@ -84,8 +95,8 @@ if ($method === 'GET') {
             echo false; // Passwords do not match
         }
         echo $post -> addUser($data);
-    } elseif ($event === 'pieChartDetails') {
-        echo $post -> addRequest($data);
+    } elseif ($event === 'addRequest') {
+        echo $post -> addRequest($data, $_SESSION['user_id']);
     }
 } elseif ($method === 'PUT') {
 
