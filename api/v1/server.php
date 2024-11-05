@@ -76,6 +76,8 @@ if ($method === 'GET') {
         echo $get -> getTopFrequentItems();
     } elseif($event === 'getFullInventoryDetails') {
         echo $get -> getFullInventoryDetails();
+    } elseif ($event === 'getAnalysisBasedOnMonth') {
+        echo $get -> getAnalysisBasedOnMonth($_GET['parameter']['month_num']);
     }
 } elseif ($method === 'POST') {
     if (!isset($data -> session_id)) {
@@ -97,6 +99,8 @@ if ($method === 'GET') {
         echo $post -> addUser($data);
     } elseif ($event === 'addRequest') {
         echo $post -> addRequest($data, $_SESSION['user_id']);
+    } elseif ($event === 'approveRequest') {
+        echo $post -> approveRequest($data, $_SESSION['user_id']);
     }
 } elseif ($method === 'PUT') {
 

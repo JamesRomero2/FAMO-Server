@@ -110,7 +110,6 @@ class Get extends Master {
                     'name' => trim($user['first_name'] . ' ' . $user['last_name']),
                     'role' => $user['role'],
                     'last logged in' => $user['last_logged_in'],
-                    'status' => $user['status'],
                 ];
             }
     
@@ -425,6 +424,35 @@ class Get extends Master {
             return json_encode(['error' => 'An error occurred  ' . $e->getMessage()]);
         }
     }
+    public function getAnalysisBasedOnMonth($month) {
+        try {
+            // Get the current year dynamically
+            $currentYear = date("Y");
+            
+            // Prepare the SQL statement with placeholders for dynamic month
+            $stmt = $this->db->prepare("SELECT 
+                DATE(date_delivery) AS delivery_date, 
+                COUNT(*) AS delivery_count 
+                FROM inventory 
+                WHERE YEAR(date_delivery) = :year AND MONTH(date_delivery) = :month 
+                GROUP BY delivery_date 
+                ORDER BY delivery_date ASC");
+
+            // Bind parameters for the current year and selected month
+            $stmt->bindParam(':year', $currentYear, PDO::PARAM_INT);
+            $stmt->bindParam(':month', $month, PDO::PARAM_INT);
+    
+            // Execute and fetch results
+            $stmt->execute();
+            $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+            return json_encode($result);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            return json_encode(['error' => 'An error occurred: ' . $e->getMessage()]);
+        }
+    }
+    
 }
 class Post extends Master {
     public function login(string $username, string $password) {
@@ -572,6 +600,226 @@ class Post extends Master {
             return json_encode(['error' => 'An error occurred  ' . $e->getMessage()]);
         }
     }
+    // public function approveRequest($data) {
+    //     try {
+    //         $this->db->beginTransaction();
+    
+    //         // Convert $data if it is in object or JSON string format
+    //         if (is_object($data)) {
+    //             $data = json_decode(json_encode($data), true);
+    //         } elseif (is_string($data)) {
+    //             $data = json_decode($data, true);
+    //         }
+    
+    //         // Retrieve request number from the provided data
+    //         $requestNumber = $data['requestInfo']['Request ID'];
+    
+    //         // Query the numeric ID based on request_number
+    //         $getRequestIdQuery = "SELECT id FROM requests WHERE request_number = :requestNumber";
+    //         $stmtRequestId = $this->db->prepare($getRequestIdQuery);
+    //         $stmtRequestId->execute([':requestNumber' => $requestNumber]);
+    //         $requestRow = $stmtRequestId->fetch(PDO::FETCH_ASSOC);
+    
+    //         if (!$requestRow) {
+    //             throw new Exception("Request ID not found for Request Number $requestNumber.");
+    //         }
+    
+    //         $requestId = $requestRow['id'];
+    
+    //         // Step 1: Get all items from request_items for the given numeric request ID
+    //         $getItemsQuery = "SELECT * FROM request_items WHERE request_id = :requestId";
+    //         $stmt = $this->db->prepare($getItemsQuery);
+    //         $stmt->execute([':requestId' => $requestId]);
+    //         $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    //         if (empty($items)) {
+    //             throw new Exception("No items found in request_items for Request ID $requestId.");
+    //         }
+    
+    //         // Step 2: Move items to the inventory by updating stock counts
+    //         foreach ($items as $item) {
+    //             $itemName = $item['item_name'];
+    //             $quantity = $item['quantity'];
+    //             $categoryId = $item['category_id'];
+    //             $unitId = $item['units_of_measurement_id'];
+    
+    //             // Get the category code based on the category_id
+    //             $getCategoryCodeQuery = "SELECT code FROM categories WHERE id = :categoryId";
+    //             $categoryStmt = $this->db->prepare($getCategoryCodeQuery);
+    //             $categoryStmt->execute([':categoryId' => $categoryId]);
+    //             $category = $categoryStmt->fetch(PDO::FETCH_ASSOC);
+    
+    //             if (!$category) {
+    //                 throw new Exception("Category not found for ID $categoryId.");
+    //             }
+    
+    //             $categoryCode = $category['code'];
+    
+    //             // Generate the next item_id by getting the max sequence for the category
+    //             $getMaxIdQuery = "SELECT item_id FROM inventory WHERE category_id = :categoryId AND item_id LIKE :categoryCodePattern ORDER BY item_id DESC LIMIT 1";
+    //             $maxIdStmt = $this->db->prepare($getMaxIdQuery);
+    //             $maxIdStmt->execute([
+    //                 ':categoryId' => $categoryId,
+    //                 ':categoryCodePattern' => $categoryCode . '-%'
+    //             ]);
+    //             $lastItemId = $maxIdStmt->fetch(PDO::FETCH_ASSOC)['item_id'];
+    
+    //             // Calculate the next item ID
+    //             $nextSequence = $lastItemId ? (int)substr($lastItemId, -4) + 1 : 100;
+    //             $nextItemId = sprintf("%s-%04d", $categoryCode, $nextSequence);
+    
+    //             // Check if item exists in inventory by name
+    //             $checkInventoryQuery = "SELECT no_of_stock FROM inventory WHERE item_name = :itemName AND category_id = :categoryId AND unit_id = :unitId";
+    //             $checkStmt = $this->db->prepare($checkInventoryQuery);
+    //             $checkStmt->execute([':itemName' => $itemName, ':categoryId' => $categoryId, ':unitId' => $unitId]);
+    //             $inventoryItem = $checkStmt->fetch(PDO::FETCH_ASSOC);
+    
+    //             if ($inventoryItem) {
+    //                 // Update existing stock and delivery date in inventory
+    //                 $newQuantity = $inventoryItem['no_of_stock'] + $quantity;
+    //                 $updateInventoryQuery = "UPDATE inventory SET no_of_stock = :newQuantity, date_delivery = CURRENT_DATE() WHERE item_name = :itemName AND category_id = :categoryId AND unit_id = :unitId";
+    //                 $updateStmt = $this->db->prepare($updateInventoryQuery);
+    //                 $updateStmt->execute([':newQuantity' => $newQuantity, ':itemName' => $itemName, ':categoryId' => $categoryId, ':unitId' => $unitId]);
+    //             } else {
+    //                 // Insert new item into inventory if it doesn't exist
+    //                 $insertInventoryQuery = "INSERT INTO inventory (item_id, item_name, category_id, unit_id, no_of_stock, date_delivery) VALUES (:itemId, :itemName, :categoryId, :unitId, :quantity, CURRENT_DATE())";
+    //                 $insertStmt = $this->db->prepare($insertInventoryQuery);
+    //                 $insertStmt->execute([':itemId' => $nextItemId, ':itemName' => $itemName, ':categoryId' => $categoryId, ':unitId' => $unitId, ':quantity' => $quantity]);
+    //             }
+    //         }
+    
+    //         // Step 3: Delete items from request_items
+    //         $deleteItemsQuery = "DELETE FROM request_items WHERE request_id = :requestId";
+    //         $deleteStmt = $this->db->prepare($deleteItemsQuery);
+    //         $deleteStmt->execute([':requestId' => $requestId]);
+    
+    //         // Step 4: Update the status of the request to "Approved"
+    //         $updateRequestQuery = "UPDATE requests SET status_id = (SELECT id FROM status WHERE description = 'Approved') WHERE id = :requestId";
+    //         $updateRequestStmt = $this->db->prepare($updateRequestQuery);
+    //         $updateRequestStmt->execute([':requestId' => $requestId]);
+    
+    //         // Commit the transaction
+    //         $this->db->commit();
+    
+    //         return json_encode(['message' => 'Request approved successfully, items moved to inventory, and delivery date updated']);
+    //     } catch (\Throwable $e) {
+    //         // Rollback transaction in case of error
+    //         $this->db->rollBack();
+    //         http_response_code(500);
+    //         return json_encode(['error' => 'An error occurred: ' . $e->getMessage()]);
+    //     }
+    // }
+    public function approveRequest($data) {
+        try {
+            $this->db->beginTransaction();
+    
+            // Convert $data if it is in object or JSON string format
+            if (is_object($data)) {
+                $data = json_decode(json_encode($data), true);
+            } elseif (is_string($data)) {
+                $data = json_decode($data, true);
+            }
+    
+            // Retrieve request number from the provided data
+            $requestNumber = $data['requestInfo']['Request ID'];
+    
+            // Query the numeric ID based on request_number
+            $getRequestIdQuery = "SELECT id FROM requests WHERE request_number = :requestNumber";
+            $stmtRequestId = $this->db->prepare($getRequestIdQuery);
+            $stmtRequestId->execute([':requestNumber' => $requestNumber]);
+            $requestRow = $stmtRequestId->fetch(PDO::FETCH_ASSOC);
+    
+            if (!$requestRow) {
+                throw new Exception("Request ID not found for Request Number $requestNumber.");
+            }
+    
+            $requestId = $requestRow['id'];
+    
+            // Step 1: Get all items from request_items for the given numeric request ID
+            $getItemsQuery = "SELECT * FROM request_items WHERE request_id = :requestId";
+            $stmt = $this->db->prepare($getItemsQuery);
+            $stmt->execute([':requestId' => $requestId]);
+            $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+            if (empty($items)) {
+                throw new Exception("No items found in request_items for Request ID $requestId.");
+            }
+    
+            // Step 2: Move items to the inventory by updating stock counts
+            foreach ($items as $item) {
+                $itemName = $item['item_name'];
+                $quantity = $item['quantity'];
+                $categoryId = $item['category_id'];
+                $unitId = $item['units_of_measurement_id'];
+                $pupGroupId = $item['pup_group_id']; // Retrieve pup_group_id
+    
+                // Get the category code based on the category_id
+                $getCategoryCodeQuery = "SELECT code FROM categories WHERE id = :categoryId";
+                $categoryStmt = $this->db->prepare($getCategoryCodeQuery);
+                $categoryStmt->execute([':categoryId' => $categoryId]);
+                $category = $categoryStmt->fetch(PDO::FETCH_ASSOC);
+    
+                if (!$category) {
+                    throw new Exception("Category not found for ID $categoryId.");
+                }
+    
+                $categoryCode = $category['code'];
+    
+                // Generate the next item_id by getting the max sequence for the category
+                $getMaxIdQuery = "SELECT item_id FROM inventory WHERE category_id = :categoryId AND item_id LIKE :categoryCodePattern ORDER BY item_id DESC LIMIT 1";
+                $maxIdStmt = $this->db->prepare($getMaxIdQuery);
+                $maxIdStmt->execute([
+                    ':categoryId' => $categoryId,
+                    ':categoryCodePattern' => $categoryCode . '-%'
+                ]);
+                $lastItemId = $maxIdStmt->fetch(PDO::FETCH_ASSOC)['item_id'];
+    
+                // Calculate the next item ID
+                $nextSequence = $lastItemId ? (int)substr($lastItemId, -4) + 1 : 100;
+                $nextItemId = sprintf("%s-%04d", $categoryCode, $nextSequence);
+    
+                // Check if item exists in inventory by name
+                $checkInventoryQuery = "SELECT no_of_stock FROM inventory WHERE item_name = :itemName AND category_id = :categoryId AND unit_id = :unitId AND pup_group_id = :pupGroupId";
+                $checkStmt = $this->db->prepare($checkInventoryQuery);
+                $checkStmt->execute([':itemName' => $itemName, ':categoryId' => $categoryId, ':unitId' => $unitId, ':pupGroupId' => $pupGroupId]);
+                $inventoryItem = $checkStmt->fetch(PDO::FETCH_ASSOC);
+    
+                if ($inventoryItem) {
+                    // Update existing stock and delivery date in inventory
+                    $newQuantity = $inventoryItem['no_of_stock'] + $quantity;
+                    $updateInventoryQuery = "UPDATE inventory SET no_of_stock = :newQuantity, date_delivery = CURRENT_DATE() WHERE item_name = :itemName AND category_id = :categoryId AND unit_id = :unitId AND pup_group_id = :pupGroupId";
+                    $updateStmt = $this->db->prepare($updateInventoryQuery);
+                    $updateStmt->execute([':newQuantity' => $newQuantity, ':itemName' => $itemName, ':categoryId' => $categoryId, ':unitId' => $unitId, ':pupGroupId' => $pupGroupId]);
+                } else {
+                    // Insert new item into inventory if it doesn't exist
+                    $insertInventoryQuery = "INSERT INTO inventory (item_id, item_name, category_id, unit_id, pup_group_id, no_of_stock, date_delivery) VALUES (:itemId, :itemName, :categoryId, :unitId, :pupGroupId, :quantity, CURRENT_DATE())";
+                    $insertStmt = $this->db->prepare($insertInventoryQuery);
+                    $insertStmt->execute([':itemId' => $nextItemId, ':itemName' => $itemName, ':categoryId' => $categoryId, ':unitId' => $unitId, ':pupGroupId' => $pupGroupId, ':quantity' => $quantity]);
+                }
+            }
+    
+            // Step 3: Delete items from request_items
+            $deleteItemsQuery = "DELETE FROM request_items WHERE request_id = :requestId";
+            $deleteStmt = $this->db->prepare($deleteItemsQuery);
+            $deleteStmt->execute([':requestId' => $requestId]);
+    
+            // Step 4: Update the status of the request to "Approved"
+            $updateRequestQuery = "UPDATE requests SET status_id = (SELECT id FROM status WHERE description = 'Approved') WHERE id = :requestId";
+            $updateRequestStmt = $this->db->prepare($updateRequestQuery);
+            $updateRequestStmt->execute([':requestId' => $requestId]);
+    
+            // Commit the transaction
+            $this->db->commit();
+    
+            return json_encode(['message' => 'Request approved successfully, items moved to inventory, and delivery date updated']);
+        } catch (\Throwable $e) {
+            // Rollback transaction in case of error
+            $this->db->rollBack();
+            http_response_code(500);
+            return json_encode(['error' => 'An error occurred: ' . $e->getMessage()]);
+        }
+    }
+    
 }
 class Put extends Master {
 
